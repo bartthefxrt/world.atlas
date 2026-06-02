@@ -1,0 +1,1061 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>World Atlas — Country Explorer</title>
+  <!-- Switching to Sora + DM Sans — rounded, humanist, not grid-rigid -->
+  <link href="https://fonts.googleapis.com/css2?family=Sora:wght@300;400;500;600&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;1,9..40,300&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+
+  <style>
+    /* =============================================
+       RESET + BASE
+    ============================================= */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:        #131316;
+      --bg-panel:  #1b1b1f;
+      --bg-card:   #222226;
+      --bg-hover:  #28282d;
+      --line:      #2c2c32;
+      --line2:     #363640;
+      --blue:      #5b8dee;
+      --blue-dim:  #354e80;
+      --blue-faint:#1e2d4a;
+      --text:      #eceae4;
+      --muted:     #878791;
+      --faint:     #505058;
+      --mono:      'DM Mono', monospace;
+      --sans:      'DM Sans', sans-serif;
+      --display:   'Sora', sans-serif;
+    }
+
+    html, body {
+      height: 100%;
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--sans);
+      font-size: 14px;
+      line-height: 1.5;
+      overflow: hidden;
+    }
+
+    /* =============================================
+       NAV
+    ============================================= */
+    #nav {
+      display: flex;
+      align-items: center;
+      height: 46px;
+      padding: 0 16px;
+      border-bottom: 1px solid var(--line);
+      background: var(--bg-panel);
+      gap: 18px;
+      flex-shrink: 0;
+    }
+
+    /* Logo — Sora gives it a slightly rounded feel */
+    #nav-logo {
+      font-family: var(--display);
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--text);
+      letter-spacing: -0.02em;
+      white-space: nowrap;
+    }
+    #nav-logo span { color: var(--blue); }
+
+    /* small wip badge */
+    #nav-wip {
+      font-family: var(--mono);
+      font-size: 10px;
+      background: var(--blue-faint);
+      color: var(--blue);
+      border: 1px solid var(--blue-dim);
+      border-radius: 4px;
+      padding: 2px 7px;
+      letter-spacing: 0.06em;
+      white-space: nowrap;
+    }
+
+    #nav-links {
+      display: flex;
+      gap: 2px;
+    }
+    #nav-links button {
+      background: none;
+      border: none;
+      color: var(--muted);
+      font-family: var(--sans);
+      font-size: 13px;
+      font-weight: 400;
+      padding: 5px 11px;
+      cursor: pointer;
+      border-radius: 5px;
+      transition: color 0.12s, background 0.12s;
+    }
+    #nav-links button:hover  { color: var(--text); background: var(--bg-hover); }
+    #nav-links button.active { color: var(--text); background: var(--bg-hover); }
+
+    /* search */
+    #nav-search-wrap { margin-left: auto; position: relative; }
+    #nav-search {
+      background: var(--bg-card);
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      padding: 5px 10px 5px 28px;
+      font-family: var(--sans);
+      font-size: 13px;
+      color: var(--text);
+      width: 210px;
+      outline: none;
+      transition: border-color .15s;
+    }
+    #nav-search:focus { border-color: var(--blue-dim); }
+    #nav-search::placeholder { color: var(--faint); }
+    .search-icon {
+      position: absolute; left: 9px; top: 50%;
+      transform: translateY(-50%);
+      color: var(--faint); pointer-events: none; font-size: 13px;
+    }
+    #search-dropdown {
+      position: absolute; top: calc(100% + 5px); right: 0;
+      width: 290px; background: var(--bg-panel);
+      border: 1px solid var(--line2); border-radius: 7px;
+      display: none; z-index: 200;
+      max-height: 310px; overflow-y: auto;
+      box-shadow: 0 8px 28px rgba(0,0,0,.5);
+    }
+    #search-dropdown::-webkit-scrollbar { width: 4px; }
+    #search-dropdown::-webkit-scrollbar-thumb { background: var(--line2); border-radius: 2px; }
+    .sdrop-item {
+      display: flex; align-items: center; gap: 10px;
+      padding: 9px 13px; cursor: pointer; font-size: 13px;
+      border-bottom: 1px solid var(--line);
+      transition: background .1s;
+    }
+    .sdrop-item:last-child { border-bottom: none; }
+    .sdrop-item:hover { background: var(--bg-hover); }
+    .sdrop-flag { font-size: 19px; line-height: 1; flex-shrink: 0; }
+    .sdrop-name { flex: 1; color: var(--text); font-weight: 500; }
+    .sdrop-cap  { color: var(--faint); font-size: 11px; font-family: var(--mono); }
+    /* greyed out unavailable countries in search */
+    .sdrop-item.unavail .sdrop-name { color: var(--faint); }
+    .sdrop-item.unavail .sdrop-flag { opacity: .4; }
+    .sdrop-unavail-tag {
+      font-size: 10px; font-family: var(--mono);
+      color: var(--faint); border: 1px solid var(--line2);
+      border-radius: 3px; padding: 1px 5px; flex-shrink: 0;
+    }
+
+    /* =============================================
+       MAIN LAYOUT
+    ============================================= */
+    #app  { display: flex; flex-direction: column; height: 100vh; }
+    #body { display: flex; flex: 1; overflow: hidden; }
+
+    /* =============================================
+       MAP
+    ============================================= */
+    #map-area {
+      flex: 1; position: relative;
+      overflow: hidden; background: #0c0c0e;
+    }
+    #world-svg { width: 100%; height: 100%; display: block; }
+
+    #map-label {
+      position: absolute; bottom: 10px; left: 12px;
+      font-family: var(--mono); font-size: 10px;
+      color: var(--faint); pointer-events: none; letter-spacing: .04em;
+    }
+
+    /* progress note — hand-written feeling */
+    #map-progress-note {
+      position: absolute; top: 10px; right: 12px;
+      font-family: var(--mono); font-size: 10px;
+      color: var(--faint); pointer-events: none;
+      line-height: 1.6;
+      text-align: right;
+    }
+
+    #zoom-controls {
+      position: absolute; top: 10px; left: 10px;
+      display: flex; flex-direction: column; gap: 1px;
+    }
+    .zoom-btn {
+      width: 26px; height: 26px;
+      background: var(--bg-panel); border: 1px solid var(--line);
+      color: var(--muted); font-size: 16px; cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      transition: color .12s, background .12s;
+      font-family: var(--mono); line-height: 1;
+    }
+    .zoom-btn:hover { color: var(--text); background: var(--bg-hover); }
+    .zoom-btn:first-child { border-radius: 5px 5px 0 0; }
+    .zoom-btn:last-child  { border-radius: 0 0 5px 5px; }
+
+    /* tooltip */
+    #tip {
+      position: absolute;
+      background: var(--bg-panel); border: 1px solid var(--line2);
+      border-radius: 6px; padding: 9px 12px;
+      pointer-events: none; display: none; z-index: 100;
+      box-shadow: 0 4px 16px rgba(0,0,0,.45);
+      min-width: 140px;
+    }
+    #tip-flag { font-size: 21px; line-height: 1; margin-bottom: 4px; }
+    #tip-name { font-size: 13px; font-weight: 500; color: var(--text); font-family: var(--display); }
+    #tip-cap  { font-size: 11px; color: var(--muted); font-family: var(--mono); margin-top: 2px; }
+    #tip-unavail {
+      font-size: 10px; font-family: var(--mono);
+      color: var(--faint); margin-top: 4px;
+      display: none;
+    }
+
+    /* =============================================
+       INFO PANEL
+    ============================================= */
+    #info-panel {
+      width: 285px;
+      border-left: 1px solid var(--line);
+      background: var(--bg-panel);
+      display: flex; flex-direction: column;
+      overflow: hidden; flex-shrink: 0;
+    }
+    #info-header {
+      padding: 9px 14px;
+      border-bottom: 1px solid var(--line);
+      font-family: var(--mono); font-size: 10px;
+      color: var(--faint); letter-spacing: .08em; text-transform: uppercase;
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    #info-header-count { color: var(--blue); }
+
+    #info-scroll { flex: 1; overflow-y: auto; }
+    #info-scroll::-webkit-scrollbar { width: 3px; }
+    #info-scroll::-webkit-scrollbar-thumb { background: var(--line2); border-radius: 2px; }
+
+    .empty-state {
+      padding: 36px 18px;
+      color: var(--faint); font-size: 13px; line-height: 1.7;
+    }
+    .empty-state .sub {
+      font-family: var(--mono); font-size: 11px;
+      color: #383840; margin-top: 10px;
+    }
+
+    /* -- country card -- */
+    .cc-flag  { font-size: 50px; line-height: 1; padding: 20px 14px 10px; }
+    .cc-name  {
+      padding: 0 14px 3px;
+      font-family: var(--display);
+      font-size: 19px; font-weight: 600;
+      color: var(--text); line-height: 1.25;
+    }
+    .cc-native { padding: 0 14px 7px; font-size: 12px; color: var(--muted); font-family: var(--sans); font-style: italic; }
+    .cc-capital { padding: 0 14px 14px; font-size: 12px; color: var(--muted); }
+    .cc-capital span { color: var(--text); font-weight: 500; }
+    .cc-divider { height: 1px; background: var(--line); margin: 0 14px; }
+
+    .cc-stats { padding: 11px 14px; }
+    .cc-stat-row {
+      display: flex; justify-content: space-between; align-items: baseline;
+      padding: 5px 0; border-bottom: 1px solid var(--line);
+      font-size: 12px;
+    }
+    .cc-stat-row:last-child { border-bottom: none; }
+    .cc-stat-label { color: var(--faint); font-family: var(--mono); }
+    .cc-stat-val   { color: var(--text); font-family: var(--mono); font-weight: 500; text-align: right; max-width: 145px; }
+
+    .cc-pop-bar { margin: 0 14px 13px; }
+    .cc-pop-bar-track { height: 3px; background: var(--line); border-radius: 2px; overflow: hidden; margin-top: 5px; }
+    .cc-pop-bar-fill  { height: 100%; background: var(--blue); border-radius: 2px; transition: width .65s ease; }
+    .cc-pop-bar-label { font-family: var(--mono); font-size: 10px; color: var(--faint); letter-spacing: .04em; }
+
+    .cc-langs { padding: 0 14px 13px; }
+    .cc-langs-label { font-family: var(--mono); font-size: 10px; color: var(--faint); letter-spacing: .05em; margin-bottom: 6px; }
+    .cc-lang-list { display: flex; flex-wrap: wrap; gap: 5px; }
+    .cc-lang {
+      font-size: 11px; font-family: var(--sans);
+      background: var(--bg-card); border: 1px solid var(--line);
+      border-radius: 4px; padding: 2px 8px; color: var(--muted);
+    }
+
+    .cc-fact { margin: 0 14px 18px; padding: 10px 12px; border-left: 2px solid var(--blue-dim); background: var(--bg-card); font-size: 12px; color: var(--muted); line-height: 1.7; }
+    .cc-fact-label { font-family: var(--mono); font-size: 10px; color: var(--faint); letter-spacing: .06em; margin-bottom: 5px; }
+
+    /* locked panel — shown when unavailable country clicked */
+    .cc-locked {
+      padding: 28px 18px; text-align: center;
+    }
+    .cc-locked-flag { font-size: 44px; opacity: .35; margin-bottom: 12px; line-height: 1; }
+    .cc-locked-name {
+      font-family: var(--display); font-size: 16px; font-weight: 600;
+      color: var(--faint); margin-bottom: 8px;
+    }
+    .cc-locked-msg {
+      font-size: 12px; color: var(--faint); line-height: 1.7;
+      font-family: var(--sans);
+    }
+    .cc-locked-tag {
+      display: inline-block; margin-top: 12px;
+      font-family: var(--mono); font-size: 10px;
+      color: var(--faint); border: 1px dashed var(--line2);
+      border-radius: 4px; padding: 4px 10px;
+    }
+
+    /* =============================================
+       LIST VIEW
+    ============================================= */
+    #list-view { flex: 1; display: none; flex-direction: column; overflow: hidden; }
+    #list-toolbar {
+      display: flex; align-items: center; gap: 7px;
+      padding: 10px 16px; border-bottom: 1px solid var(--line); flex-wrap: wrap;
+    }
+    .reg-btn {
+      font-family: var(--sans); font-size: 12px; font-weight: 400;
+      background: none; border: 1px solid var(--line);
+      border-radius: 5px; color: var(--faint); padding: 4px 11px;
+      cursor: pointer; transition: all .12s;
+    }
+    .reg-btn:hover { color: var(--text); border-color: var(--line2); }
+    .reg-btn.active { color: var(--blue); border-color: var(--blue-dim); background: var(--blue-faint); }
+    #list-sort {
+      margin-left: auto; background: var(--bg-card);
+      border: 1px solid var(--line); border-radius: 5px;
+      padding: 4px 9px; font-family: var(--sans); font-size: 12px;
+      color: var(--muted); outline: none; cursor: pointer;
+    }
+    #list-sort option { background: var(--bg-panel); }
+    #list-count {
+      padding: 6px 16px; font-family: var(--mono);
+      font-size: 10px; color: var(--faint);
+      border-bottom: 1px solid var(--line); flex-shrink: 0;
+    }
+    #list-scroll { flex: 1; overflow-y: auto; }
+    #list-scroll::-webkit-scrollbar { width: 4px; }
+    #list-scroll::-webkit-scrollbar-thumb { background: var(--line2); border-radius: 2px; }
+
+    .list-row {
+      display: flex; align-items: center; gap: 12px;
+      padding: 9px 16px; border-bottom: 1px solid var(--line);
+      cursor: pointer; transition: background .1s;
+    }
+    .list-row:hover { background: var(--bg-hover); }
+    .list-row.selected { background: rgba(91,141,238,.07); border-left: 2px solid var(--blue-dim); padding-left: 14px; }
+    /* unavailable rows in list */
+    .list-row.unavail { opacity: .45; cursor: default; }
+    .list-row.unavail:hover { background: transparent; }
+    .lr-flag  { font-size: 20px; line-height: 1; flex-shrink: 0; }
+    .lr-info  { flex: 1; min-width: 0; }
+    .lr-name  { font-size: 13px; font-weight: 500; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .lr-cap   { font-size: 11px; color: var(--faint); font-family: var(--mono); margin-top: 1px; }
+    .lr-right { text-align: right; flex-shrink: 0; }
+    .lr-pop   { font-family: var(--mono); font-size: 12px; color: var(--muted); }
+    .lr-reg   { font-size: 10px; color: var(--faint); font-family: var(--mono); margin-top: 2px; }
+    .lr-wip   { font-size: 10px; font-family: var(--mono); color: var(--faint); }
+
+    /* =============================================
+       STATS VIEW
+    ============================================= */
+    #stats-view { flex: 1; display: none; overflow-y: auto; padding: 22px 26px; }
+    #stats-view::-webkit-scrollbar { width: 4px; }
+    #stats-view::-webkit-scrollbar-thumb { background: var(--line2); border-radius: 2px; }
+    .stats-section { margin-bottom: 30px; }
+    .stats-section h3 {
+      font-family: var(--display); font-size: 13px; font-weight: 600;
+      color: var(--muted); letter-spacing: .01em;
+      margin-bottom: 14px; padding-bottom: 7px;
+      border-bottom: 1px solid var(--line);
+    }
+    .bar-row { display: flex; align-items: center; gap: 10px; margin-bottom: 7px; font-size: 12px; }
+    .bar-flag  { font-size: 15px; width: 20px; text-align: center; flex-shrink: 0; }
+    .bar-name  { width: 110px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex-shrink: 0; font-family: var(--sans); }
+    .bar-track { flex: 1; background: var(--line); height: 4px; border-radius: 2px; overflow: hidden; }
+    .bar-fill  { height: 100%; background: var(--blue-dim); border-radius: 2px; }
+    .bar-val   { font-family: var(--mono); font-size: 11px; color: var(--faint); width: 58px; text-align: right; flex-shrink: 0; }
+
+    .region-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+    .region-table th {
+      text-align: left; font-family: var(--mono); font-size: 10px;
+      color: var(--faint); letter-spacing: .08em; text-transform: uppercase;
+      padding: 5px 8px; border-bottom: 1px solid var(--line);
+    }
+    .region-table td { padding: 7px 8px; border-bottom: 1px solid var(--line); color: var(--muted); font-family: var(--mono); }
+    .region-table td:first-child { color: var(--text); font-family: var(--sans); font-weight: 500; }
+    .region-table tr:last-child td { border-bottom: none; }
+    .region-table tr:hover td { background: var(--bg-hover); }
+
+    /* =============================================
+       FOOTER
+    ============================================= */
+    #footer {
+      height: 30px; border-top: 1px solid var(--line);
+      background: var(--bg-panel);
+      display: flex; align-items: center; padding: 0 16px; gap: 20px; flex-shrink: 0;
+    }
+    #footer span { font-family: var(--mono); font-size: 10px; color: var(--faint); }
+    #footer span b { color: var(--muted); font-weight: 500; }
+    #selected-label { margin-left: auto; font-family: var(--mono); font-size: 10px; color: var(--faint); }
+
+    @media (max-width: 700px) {
+      #info-panel { display: none; }
+      #nav-search  { width: 130px; }
+    }
+  </style>
+</head>
+<body>
+<div id="app">
+
+  <!-- NAV -->
+  <nav id="nav">
+    <div id="nav-logo">world<span>.</span>atlas</div>
+    <div id="nav-wip">wip</div>
+    <div id="nav-links">
+      <button class="active" data-view="map"   onclick="switchView('map', this)">Map</button>
+      <button               data-view="list"  onclick="switchView('list', this)">Countries</button>
+      <button               data-view="stats" onclick="switchView('stats', this)">Data</button>
+    </div>
+    <div id="nav-search-wrap">
+      <span class="search-icon">⌕</span>
+      <input id="nav-search" type="text" placeholder="search country or capital" autocomplete="off" spellcheck="false">
+      <div id="search-dropdown"></div>
+    </div>
+  </nav>
+
+  <div id="body">
+    <!-- MAP -->
+    <div id="map-area" style="display:flex;flex:1;position:relative;overflow:hidden;">
+      <svg id="world-svg" viewBox="0 0 960 500"></svg>
+      <div id="zoom-controls">
+        <button class="zoom-btn" id="btn-zin">+</button>
+        <button class="zoom-btn" id="btn-zout">−</button>
+        <button class="zoom-btn" id="btn-reset" style="font-size:11px;">↺</button>
+      </div>
+      <!-- subtle wip note, looks like a dev left it there -->
+      <div id="map-progress-note">
+        // TODO: add remaining countries<br>
+        // 62 / 195 done so far
+      </div>
+      <div id="map-label">natural earth · scroll to zoom · click to explore</div>
+      <div id="tip">
+        <div id="tip-flag"></div>
+        <div id="tip-name"></div>
+        <div id="tip-cap"></div>
+        <div id="tip-unavail">not added yet</div>
+      </div>
+    </div>
+
+    <!-- LIST VIEW -->
+    <div id="list-view">
+      <div id="list-toolbar">
+        <button class="reg-btn active" data-r="all">All</button>
+        <button class="reg-btn" data-r="Africa">Africa</button>
+        <button class="reg-btn" data-r="Americas">Americas</button>
+        <button class="reg-btn" data-r="Asia">Asia</button>
+        <button class="reg-btn" data-r="Europe">Europe</button>
+        <button class="reg-btn" data-r="Oceania">Oceania</button>
+        <select id="list-sort">
+          <option value="name">A–Z</option>
+          <option value="pop">Population</option>
+          <option value="area">Area</option>
+        </select>
+      </div>
+      <div id="list-count"></div>
+      <div id="list-scroll"></div>
+    </div>
+
+    <!-- STATS VIEW -->
+    <div id="stats-view"></div>
+
+    <!-- INFO PANEL -->
+    <div id="info-panel">
+      <div id="info-header">
+        country info
+        <span id="info-header-count">62 / 195</span>
+      </div>
+      <div id="info-scroll">
+        <div class="empty-state">
+          <p>Click a highlighted country on the map to see details.</p>
+          <p class="sub">// greyed-out countries coming soon</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <footer id="footer">
+    <span>62 countries added</span>
+    <span>133 <b>todo</b></span>
+    <span>source: world-atlas 2.0</span>
+    <span id="selected-label">nothing selected</span>
+  </footer>
+
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/topojson/3.0.2/topojson.min.js"></script>
+<script>
+
+/* =============================================
+   COUNTRY DATA — only the "done" ones have full info.
+   The rest are in STUB form (just flag + name + capital)
+   to make it feel like a real wip project.
+============================================= */
+
+// These 62 are "done" — full data
+const DONE = [
+  {id:"USA",n:"United States",nt:"United States",f:"🇺🇸",cap:"Washington D.C.",pop:331002651,area:9833520,reg:"Americas",sreg:"N. America",cur:"USD",langs:["English"],fact:"World's largest economy. First country to land humans on the Moon. Invented the internet and produces 35% of global tech patents."},
+  {id:"CAN",n:"Canada",nt:"Canada",f:"🇨🇦",cap:"Ottawa",pop:37742154,area:9984670,reg:"Americas",sreg:"N. America",cur:"CAD",langs:["English","French"],fact:"Has the longest coastline on Earth (202,080 km) and more lakes than the rest of the world combined. Invented basketball and insulin."},
+  {id:"MEX",n:"Mexico",nt:"México",f:"🇲🇽",cap:"Mexico City",pop:128932753,area:1964375,reg:"Americas",sreg:"C. America",cur:"MXN",langs:["Spanish"],fact:"The world's largest pyramid by volume is here (Cholula). Gave the world chocolate, vanilla, tomatoes, and corn."},
+  {id:"BRA",n:"Brazil",nt:"Brasil",f:"🇧🇷",cap:"Brasília",pop:212559417,area:8515767,reg:"Americas",sreg:"S. America",cur:"BRL",langs:["Portuguese"],fact:"Contains 60% of the Amazon rainforest. Won the FIFA World Cup a record five times."},
+  {id:"ARG",n:"Argentina",nt:"Argentina",f:"🇦🇷",cap:"Buenos Aires",pop:45195777,area:2780400,reg:"Americas",sreg:"S. America",cur:"ARS",langs:["Spanish"],fact:"Birthplace of tango and Pope Francis. Stretches 3,700 km from subtropical jungle to near-Antarctica."},
+  {id:"COL",n:"Colombia",nt:"Colombia",f:"🇨🇴",cap:"Bogotá",pop:50882891,area:1141748,reg:"Americas",sreg:"S. America",cur:"COP",langs:["Spanish"],fact:"The only South American country with both Pacific and Caribbean coasts. World's largest emerald producer."},
+  {id:"PER",n:"Peru",nt:"Perú",f:"🇵🇪",cap:"Lima",pop:32971854,area:1285216,reg:"Americas",sreg:"S. America",cur:"PEN",langs:["Spanish","Quechua"],fact:"Home to Machu Picchu and the Amazon source. 90 of the world's 104 ecological life zones exist here."},
+  {id:"VEN",n:"Venezuela",nt:"Venezuela",f:"🇻🇪",cap:"Caracas",pop:28435943,area:916445,reg:"Americas",sreg:"S. America",cur:"VES",langs:["Spanish"],fact:"Angel Falls (979 m) is the world's highest waterfall. Has the world's largest proven oil reserves."},
+  {id:"CHL",n:"Chile",nt:"Chile",f:"🇨🇱",cap:"Santiago",pop:19116201,area:756102,reg:"Americas",sreg:"S. America",cur:"CLP",langs:["Spanish"],fact:"World's longest country at 4,300 km. Has the driest desert, southernmost city, and best stargazing conditions on Earth."},
+  {id:"GBR",n:"United Kingdom",nt:"United Kingdom",f:"🇬🇧",cap:"London",pop:67886011,area:242495,reg:"Europe",sreg:"N. Europe",cur:"GBP",langs:["English"],fact:"Led the Industrial Revolution. Tim Berners-Lee invented the internet here. 53 countries gained independence from British rule."},
+  {id:"FRA",n:"France",nt:"France",f:"🇫🇷",cap:"Paris",pop:67391582,area:643801,reg:"Europe",sreg:"W. Europe",cur:"EUR",langs:["French"],fact:"Most visited country on Earth (~90 million tourists/year). Produces over 1,500 distinct varieties of cheese."},
+  {id:"DEU",n:"Germany",nt:"Deutschland",f:"🇩🇪",cap:"Berlin",pop:83783942,area:357114,reg:"Europe",sreg:"W. Europe",cur:"EUR",langs:["German"],fact:"Invented the printing press, the automobile, aspirin, and the mp3. Has over 1,300 breweries."},
+  {id:"ITA",n:"Italy",nt:"Italia",f:"🇮🇹",cap:"Rome",pop:60461826,area:301340,reg:"Europe",sreg:"S. Europe",cur:"EUR",langs:["Italian"],fact:"More UNESCO World Heritage Sites than any other country (58). Birthplace of the Renaissance, opera, pizza, and pasta."},
+  {id:"ESP",n:"Spain",nt:"España",f:"🇪🇸",cap:"Madrid",pop:46754778,area:505990,reg:"Europe",sreg:"S. Europe",cur:"EUR",langs:["Spanish"],fact:"Has the world's oldest restaurant — Sobrino de Botín in Madrid, open since 1725 per Guinness World Records."},
+  {id:"RUS",n:"Russia",nt:"Россия",f:"🇷🇺",cap:"Moscow",pop:145934462,area:17098242,reg:"Europe",sreg:"E. Europe",cur:"RUB",langs:["Russian"],fact:"Spans 11 time zones across 17 million km². Invented Tetris, sent the first human to space, and Lake Baikal holds 20% of Earth's freshwater."},
+  {id:"POL",n:"Poland",nt:"Polska",f:"🇵🇱",cap:"Warsaw",pop:37846611,area:312696,reg:"Europe",sreg:"E. Europe",cur:"PLN",langs:["Polish"],fact:"Rebuilt Warsaw entirely after 85% of the city was destroyed in WWII. Copernicus, Chopin, and Marie Curie were all Polish."},
+  {id:"UKR",n:"Ukraine",nt:"Україна",f:"🇺🇦",cap:"Kyiv",pop:43733762,area:603550,reg:"Europe",sreg:"E. Europe",cur:"UAH",langs:["Ukrainian"],fact:"Europe's largest country. Its 'chernozem' black soil produces 16% of global wheat exports."},
+  {id:"NLD",n:"Netherlands",nt:"Nederland",f:"🇳🇱",cap:"Amsterdam",pop:17134872,area:41543,reg:"Europe",sreg:"W. Europe",cur:"EUR",langs:["Dutch"],fact:"A third of the country lies below sea level. Invented the microscope, telescope, and stock market. Produces 4.5 billion tulip bulbs yearly."},
+  {id:"SWE",n:"Sweden",nt:"Sverige",f:"🇸🇪",cap:"Stockholm",pop:10099265,area:450295,reg:"Europe",sreg:"N. Europe",cur:"SEK",langs:["Swedish"],fact:"Invented the pacemaker, Bluetooth, the adjustable wrench, and the zipper. Stockholm is built on 14 islands."},
+  {id:"NOR",n:"Norway",nt:"Norge",f:"🇳🇴",cap:"Oslo",pop:5421241,area:385207,reg:"Europe",sreg:"N. Europe",cur:"NOK",langs:["Norwegian"],fact:"Longest fjords in the world. Sovereign wealth fund worth over $1.4 trillion. Gets the midnight sun for weeks each summer."},
+  {id:"CHE",n:"Switzerland",nt:"Schweiz",f:"🇨🇭",cap:"Bern",pop:8654622,area:41285,reg:"Europe",sreg:"C. Europe",cur:"CHF",langs:["German","French","Italian","Romansh"],fact:"Neutral since 1815. Invented milk chocolate, Velcro, and the World Wide Web was born at CERN here."},
+  {id:"PRT",n:"Portugal",nt:"Portugal",f:"🇵🇹",cap:"Lisbon",pop:10196709,area:92212,reg:"Europe",sreg:"S. Europe",cur:"EUR",langs:["Portuguese"],fact:"Europe's oldest nation-state, borders unchanged since 1139. Portuguese is now spoken by 250 million people worldwide."},
+  {id:"GRC",n:"Greece",nt:"Ελλάδα",f:"🇬🇷",cap:"Athens",pop:10423054,area:131957,reg:"Europe",sreg:"S. Europe",cur:"EUR",langs:["Greek"],fact:"Birthplace of democracy, the Olympics, and Western philosophy. About 12% of English words derive from Greek."},
+  {id:"CHN",n:"China",nt:"中国",f:"🇨🇳",cap:"Beijing",pop:1439323776,area:9596960,reg:"Asia",sreg:"E. Asia",cur:"CNY",langs:["Mandarin"],fact:"Invented paper, printing, gunpowder, and the compass — four advances that fundamentally changed human civilization."},
+  {id:"IND",n:"India",nt:"भारत",f:"🇮🇳",cap:"New Delhi",pop:1380004385,area:3287263,reg:"Asia",sreg:"S. Asia",cur:"INR",langs:["Hindi","English"],fact:"World's largest democracy. Invented zero, chess, yoga, and the decimal numeral system."},
+  {id:"JPN",n:"Japan",nt:"日本",f:"🇯🇵",cap:"Tokyo",pop:126476461,area:377975,reg:"Asia",sreg:"E. Asia",cur:"JPY",langs:["Japanese"],fact:"6,852 islands. World's 3rd largest economy. The oldest surviving company was founded here in 578 AD."},
+  {id:"KOR",n:"South Korea",nt:"대한민국",f:"🇰🇷",cap:"Seoul",pop:51269185,area:100210,reg:"Asia",sreg:"E. Asia",cur:"KRW",langs:["Korean"],fact:"From one of the world's poorest countries in 1950 to a global tech power. Created K-pop and the Korean Wave."},
+  {id:"IDN",n:"Indonesia",nt:"Indonesia",f:"🇮🇩",cap:"Jakarta",pop:273523615,area:1904569,reg:"Asia",sreg:"SE. Asia",cur:"IDR",langs:["Indonesian"],fact:"World's largest archipelago (17,000+ islands). 4th most populous nation. Has 700+ distinct languages spoken domestically."},
+  {id:"PAK",n:"Pakistan",nt:"پاکستان",f:"🇵🇰",cap:"Islamabad",pop:220892340,area:881913,reg:"Asia",sreg:"S. Asia",cur:"PKR",langs:["Urdu","English"],fact:"Home to K2, world's second highest peak. Mohenjo-daro was one of the earliest urban civilizations (2500 BC)."},
+  {id:"BGD",n:"Bangladesh",nt:"বাংলাদেশ",f:"🇧🇩",cap:"Dhaka",pop:164689383,area:147570,reg:"Asia",sreg:"S. Asia",cur:"BDT",langs:["Bengali"],fact:"The Sundarbans mangrove forest here is the last major habitat of the Bengal tiger."},
+  {id:"TUR",n:"Turkey",nt:"Türkiye",f:"🇹🇷",cap:"Ankara",pop:84339067,area:783562,reg:"Asia",sreg:"W. Asia",cur:"TRY",langs:["Turkish"],fact:"Istanbul is the only city in the world on two continents. Turkey has more archaeological sites than Greece and Italy combined."},
+  {id:"IRN",n:"Iran",nt:"ایران",f:"🇮🇷",cap:"Tehran",pop:83992949,area:1648195,reg:"Asia",sreg:"S. Asia",cur:"IRR",langs:["Persian"],fact:"7,000 years of continuous civilization. Birthplace of chess and polo. Isfahan is among the world's most architecturally stunning cities."},
+  {id:"THA",n:"Thailand",nt:"ประเทศไทย",f:"🇹🇭",cap:"Bangkok",pop:69799978,area:513120,reg:"Asia",sreg:"SE. Asia",cur:"THB",langs:["Thai"],fact:"Only Southeast Asian nation never colonised by a European power. Home to over 40,000 Buddhist temples."},
+  {id:"VNM",n:"Vietnam",nt:"Việt Nam",f:"🇻🇳",cap:"Hanoi",pop:97338579,area:331212,reg:"Asia",sreg:"SE. Asia",cur:"VND",langs:["Vietnamese"],fact:"1,650 km of coastline. Hạ Long Bay has 1,600+ limestone islands. One of Asia's fastest-growing economies."},
+  {id:"PHL",n:"Philippines",nt:"Pilipinas",f:"🇵🇭",cap:"Manila",pop:109581078,area:300000,reg:"Asia",sreg:"SE. Asia",cur:"PHP",langs:["Filipino","English"],fact:"7,641 islands with the world's longest coastline. Only Christian-majority nation in Asia."},
+  {id:"MYS",n:"Malaysia",nt:"Malaysia",f:"🇲🇾",cap:"Kuala Lumpur",pop:32365999,area:329847,reg:"Asia",sreg:"SE. Asia",cur:"MYR",langs:["Malay"],fact:"Home to a 130-million-year-old rainforest. The Petronas Towers were once the world's tallest buildings."},
+  {id:"SAU",n:"Saudi Arabia",nt:"المملكة العربية السعودية",f:"🇸🇦",cap:"Riyadh",pop:34813871,area:2149690,reg:"Asia",sreg:"W. Asia",cur:"SAR",langs:["Arabic"],fact:"Custodian of Islam's two holiest sites. Contains 16% of proven world oil reserves. Roughly the size of Western Europe."},
+  {id:"IRQ",n:"Iraq",nt:"العراق",f:"🇮🇶",cap:"Baghdad",pop:40222493,area:438317,reg:"Asia",sreg:"W. Asia",cur:"IQD",langs:["Arabic","Kurdish"],fact:"Ancient Mesopotamia — writing, the wheel, cities, and the first codified law all originated here over 5,000 years ago."},
+  {id:"KAZ",n:"Kazakhstan",nt:"Қазақстан",f:"🇰🇿",cap:"Astana",pop:18776707,area:2724900,reg:"Asia",sreg:"C. Asia",cur:"KZT",langs:["Kazakh","Russian"],fact:"Largest landlocked country in the world. The apple was domesticated here. Baikonur was the site of the first human spaceflight."},
+  {id:"AFG",n:"Afghanistan",nt:"افغانستان",f:"🇦🇫",cap:"Kabul",pop:38928341,area:652230,reg:"Asia",sreg:"S. Asia",cur:"AFN",langs:["Dari","Pashto"],fact:"Home to the Khyber Pass and Balkh, one of Earth's oldest cities at 3,500+ years. Sits at the crossroads of Central and South Asia."},
+  {id:"NGA",n:"Nigeria",nt:"Nigeria",f:"🇳🇬",cap:"Abuja",pop:206139589,area:923768,reg:"Africa",sreg:"W. Africa",cur:"NGN",langs:["English"],fact:"Africa's most populous nation and largest economy. By 2050 projected to reach 400 million people."},
+  {id:"ETH",n:"Ethiopia",nt:"ኢትዮጵያ",f:"🇪🇹",cap:"Addis Ababa",pop:114963588,area:1104300,reg:"Africa",sreg:"E. Africa",cur:"ETB",langs:["Amharic"],fact:"Never colonised. Ethiopians believe the Ark of the Covenant is kept in the ancient city of Aksum."},
+  {id:"EGY",n:"Egypt",nt:"مصر",f:"🇪🇬",cap:"Cairo",pop:102334404,area:1002450,reg:"Africa",sreg:"N. Africa",cur:"EGP",langs:["Arabic"],fact:"The Great Pyramid of Giza is the only surviving Wonder of the Ancient World, built around 2560 BC."},
+  {id:"COD",n:"DR Congo",nt:"Kongo ya Bokonzi",f:"🇨🇩",cap:"Kinshasa",pop:89561403,area:2344858,reg:"Africa",sreg:"Mid. Africa",cur:"CDF",langs:["French"],fact:"The Congo River is the world's deepest (220 m) and second largest by discharge — a lifeline for 100 million people."},
+  {id:"TZA",n:"Tanzania",nt:"Tanzania",f:"🇹🇿",cap:"Dodoma",pop:59734218,area:945087,reg:"Africa",sreg:"E. Africa",cur:"TZS",langs:["Swahili","English"],fact:"Home to Kilimanjaro (Africa's highest peak) and Lake Victoria. The Serengeti has the greatest land migration on Earth."},
+  {id:"ZAF",n:"South Africa",nt:"South Africa",f:"🇿🇦",cap:"Pretoria",pop:59308690,area:1219090,reg:"Africa",sreg:"S. Africa",cur:"ZAR",langs:["11 official languages"],fact:"Three capitals, 11 official languages — more than any other country. Home of the Cradle of Humankind fossil site."},
+  {id:"KEN",n:"Kenya",nt:"Kenya",f:"🇰🇪",cap:"Nairobi",pop:53771296,area:580367,reg:"Africa",sreg:"E. Africa",cur:"KES",langs:["Swahili","English"],fact:"Oldest Homo sapiens fossils (300,000 years old) found near Nairobi. Home of the Serengeti Great Migration."},
+  {id:"DZA",n:"Algeria",nt:"الجزائر",f:"🇩🇿",cap:"Algiers",pop:43851043,area:2381741,reg:"Africa",sreg:"N. Africa",cur:"DZD",langs:["Arabic","Berber"],fact:"Africa's largest country. The Sahara covers 80% of its territory and hosts ancient rock art over 10,000 years old."},
+  {id:"SDN",n:"Sudan",nt:"السودان",f:"🇸🇩",cap:"Khartoum",pop:43849260,area:1861484,reg:"Africa",sreg:"N. Africa",cur:"SDG",langs:["Arabic","English"],fact:"Has more ancient pyramids than Egypt — over 200 Nubian pyramids in the desert, largely unknown to tourists."},
+  {id:"MAR",n:"Morocco",nt:"المغرب",f:"🇲🇦",cap:"Rabat",pop:36910560,area:446550,reg:"Africa",sreg:"N. Africa",cur:"MAD",langs:["Arabic","Berber"],fact:"Home to the University of Al Quaraouiyine (859 AD), widely considered the world's oldest continuously operating university."},
+  {id:"MOZ",n:"Mozambique",nt:"Moçambique",f:"🇲🇿",cap:"Maputo",pop:31255435,area:801590,reg:"Africa",sreg:"E. Africa",cur:"MZN",langs:["Portuguese"],fact:"Has an AK-47 on its national flag. Once home to Sofala, a key medieval Indian Ocean trading port."},
+  {id:"GHA",n:"Ghana",nt:"Ghana",f:"🇬🇭",cap:"Accra",pop:31072940,area:238533,reg:"Africa",sreg:"W. Africa",cur:"GHS",langs:["English"],fact:"First sub-Saharan African country to gain independence (1957). Produces about 20% of the world's cocoa."},
+  {id:"MDG",n:"Madagascar",nt:"Madagasikara",f:"🇲🇬",cap:"Antananarivo",pop:27691018,area:587041,reg:"Africa",sreg:"E. Africa",cur:"MGA",langs:["Malagasy","French"],fact:"Split from India 88 million years ago. 90% of its wildlife — including all 105 lemur species — exists nowhere else on Earth."},
+  {id:"CMR",n:"Cameroon",nt:"Cameroun",f:"🇨🇲",cap:"Yaoundé",pop:26545863,area:475442,reg:"Africa",sreg:"Mid. Africa",cur:"XAF",langs:["English","French"],fact:"Called 'Africa in miniature' — beach, desert, rainforest, savanna, and mountains all within one border."},
+  {id:"AUS",n:"Australia",nt:"Australia",f:"🇦🇺",cap:"Canberra",pop:25499884,area:7692024,reg:"Oceania",sreg:"Oceania",cur:"AUD",langs:["English"],fact:"Home to 21 of the 25 most venomous snakes in the world, plus the platypus."},
+  {id:"NZL",n:"New Zealand",nt:"Aotearoa",f:"🇳🇿",cap:"Wellington",pop:5002100,area:270467,reg:"Oceania",sreg:"Oceania",cur:"NZD",langs:["English","Māori"],fact:"First country to grant women the right to vote (1893). 80% of its wildlife is found nowhere else."},
+  {id:"PNG",n:"Papua New Guinea",nt:"Papua New Guinea",f:"🇵🇬",cap:"Port Moresby",pop:8947024,area:462840,reg:"Oceania",sreg:"Melanesia",cur:"PGK",langs:["English","Tok Pisin"],fact:"Most linguistically diverse country on Earth — 850+ languages. 80% of people still live in traditional tribal communities."},
+  {id:"FIN",n:"Finland",nt:"Suomi",f:"🇫🇮",cap:"Helsinki",pop:5540720,area:338145,reg:"Europe",sreg:"N. Europe",cur:"EUR",langs:["Finnish","Swedish"],fact:"188,000 lakes and 3.2 million saunas for 5.5 million people. Consistently ranks as the world's happiest country."},
+  {id:"DNK",n:"Denmark",nt:"Danmark",f:"🇩🇰",cap:"Copenhagen",pop:5792202,area:42924,reg:"Europe",sreg:"N. Europe",cur:"DKK",langs:["Danish"],fact:"Oldest continuous monarchy in the world. The Danish concept of 'hygge' has been adopted globally."},
+  {id:"ISL",n:"Iceland",nt:"Ísland",f:"🇮🇸",cap:"Reykjavik",pop:341243,area:103000,reg:"Europe",sreg:"N. Europe",cur:"ISK",langs:["Icelandic"],fact:"Runs on 100% renewable energy. World's oldest parliament (Althing, 930 AD) and essentially no standing army."},
+];
+
+// These are "stub" countries — just enough data to show in list/tooltip as greyed out
+const STUBS = [
+  {id:"ALB",n:"Albania",f:"🇦🇱",cap:"Tirana",reg:"Europe"},
+  {id:"AGO",n:"Angola",f:"🇦🇴",cap:"Luanda",reg:"Africa"},
+  {id:"ATG",n:"Antigua and Barbuda",f:"🇦🇬",cap:"Saint John's",reg:"Americas"},
+  {id:"ARM",n:"Armenia",f:"🇦🇲",cap:"Yerevan",reg:"Asia"},
+  {id:"AUT",n:"Austria",f:"🇦🇹",cap:"Vienna",reg:"Europe"},
+  {id:"AZE",n:"Azerbaijan",f:"🇦🇿",cap:"Baku",reg:"Asia"},
+  {id:"BHS",n:"Bahamas",f:"🇧🇸",cap:"Nassau",reg:"Americas"},
+  {id:"BHR",n:"Bahrain",f:"🇧🇭",cap:"Manama",reg:"Asia"},
+  {id:"BRB",n:"Barbados",f:"🇧🇧",cap:"Bridgetown",reg:"Americas"},
+  {id:"BLR",n:"Belarus",f:"🇧🇾",cap:"Minsk",reg:"Europe"},
+  {id:"BEL",n:"Belgium",f:"🇧🇪",cap:"Brussels",reg:"Europe"},
+  {id:"BLZ",n:"Belize",f:"🇧🇿",cap:"Belmopan",reg:"Americas"},
+  {id:"BEN",n:"Benin",f:"🇧🇯",cap:"Porto-Novo",reg:"Africa"},
+  {id:"BTN",n:"Bhutan",f:"🇧🇹",cap:"Thimphu",reg:"Asia"},
+  {id:"BOL",n:"Bolivia",f:"🇧🇴",cap:"Sucre",reg:"Americas"},
+  {id:"BIH",n:"Bosnia and Herzegovina",f:"🇧🇦",cap:"Sarajevo",reg:"Europe"},
+  {id:"BWA",n:"Botswana",f:"🇧🇼",cap:"Gaborone",reg:"Africa"},
+  {id:"BRN",n:"Brunei",f:"🇧🇳",cap:"Bandar Seri Begawan",reg:"Asia"},
+  {id:"BGR",n:"Bulgaria",f:"🇧🇬",cap:"Sofia",reg:"Europe"},
+  {id:"BFA",n:"Burkina Faso",f:"🇧🇫",cap:"Ouagadougou",reg:"Africa"},
+  {id:"BDI",n:"Burundi",f:"🇧🇮",cap:"Gitega",reg:"Africa"},
+  {id:"CPV",n:"Cabo Verde",f:"🇨🇻",cap:"Praia",reg:"Africa"},
+  {id:"KHM",n:"Cambodia",f:"🇰🇭",cap:"Phnom Penh",reg:"Asia"},
+  {id:"CAF",n:"Central African Republic",f:"🇨🇫",cap:"Bangui",reg:"Africa"},
+  {id:"TCD",n:"Chad",f:"🇹🇩",cap:"N'Djamena",reg:"Africa"},
+  {id:"COM",n:"Comoros",f:"🇰🇲",cap:"Moroni",reg:"Africa"},
+  {id:"COG",n:"Republic of Congo",f:"🇨🇬",cap:"Brazzaville",reg:"Africa"},
+  {id:"CRI",n:"Costa Rica",f:"🇨🇷",cap:"San José",reg:"Americas"},
+  {id:"CIV",n:"Côte d'Ivoire",f:"🇨🇮",cap:"Yamoussoukro",reg:"Africa"},
+  {id:"HRV",n:"Croatia",f:"🇭🇷",cap:"Zagreb",reg:"Europe"},
+  {id:"CUB",n:"Cuba",f:"🇨🇺",cap:"Havana",reg:"Americas"},
+  {id:"CYP",n:"Cyprus",f:"🇨🇾",cap:"Nicosia",reg:"Europe"},
+  {id:"CZE",n:"Czechia",f:"🇨🇿",cap:"Prague",reg:"Europe"},
+  {id:"DJI",n:"Djibouti",f:"🇩🇯",cap:"Djibouti",reg:"Africa"},
+  {id:"DMA",n:"Dominica",f:"🇩🇲",cap:"Roseau",reg:"Americas"},
+  {id:"DOM",n:"Dominican Republic",f:"🇩🇴",cap:"Santo Domingo",reg:"Americas"},
+  {id:"ECU",n:"Ecuador",f:"🇪🇨",cap:"Quito",reg:"Americas"},
+  {id:"SLV",n:"El Salvador",f:"🇸🇻",cap:"San Salvador",reg:"Americas"},
+  {id:"GNQ",n:"Equatorial Guinea",f:"🇬🇶",cap:"Malabo",reg:"Africa"},
+  {id:"ERI",n:"Eritrea",f:"🇪🇷",cap:"Asmara",reg:"Africa"},
+  {id:"EST",n:"Estonia",f:"🇪🇪",cap:"Tallinn",reg:"Europe"},
+  {id:"SWZ",n:"Eswatini",f:"🇸🇿",cap:"Mbabane",reg:"Africa"},
+  {id:"FJI",n:"Fiji",f:"🇫🇯",cap:"Suva",reg:"Oceania"},
+  {id:"GAB",n:"Gabon",f:"🇬🇦",cap:"Libreville",reg:"Africa"},
+  {id:"GMB",n:"Gambia",f:"🇬🇲",cap:"Banjul",reg:"Africa"},
+  {id:"GEO",n:"Georgia",f:"🇬🇪",cap:"Tbilisi",reg:"Asia"},
+  {id:"GRD",n:"Grenada",f:"🇬🇩",cap:"Saint George's",reg:"Americas"},
+  {id:"GTM",n:"Guatemala",f:"🇬🇹",cap:"Guatemala City",reg:"Americas"},
+  {id:"GIN",n:"Guinea",f:"🇬🇳",cap:"Conakry",reg:"Africa"},
+  {id:"GNB",n:"Guinea-Bissau",f:"🇬🇼",cap:"Bissau",reg:"Africa"},
+  {id:"GUY",n:"Guyana",f:"🇬🇾",cap:"Georgetown",reg:"Americas"},
+  {id:"HTI",n:"Haiti",f:"🇭🇹",cap:"Port-au-Prince",reg:"Americas"},
+  {id:"HND",n:"Honduras",f:"🇭🇳",cap:"Tegucigalpa",reg:"Americas"},
+  {id:"HUN",n:"Hungary",f:"🇭🇺",cap:"Budapest",reg:"Europe"},
+  {id:"IRL",n:"Ireland",f:"🇮🇪",cap:"Dublin",reg:"Europe"},
+  {id:"ISR",n:"Israel",f:"🇮🇱",cap:"Jerusalem",reg:"Asia"},
+  {id:"JAM",n:"Jamaica",f:"🇯🇲",cap:"Kingston",reg:"Americas"},
+  {id:"JOR",n:"Jordan",f:"🇯🇴",cap:"Amman",reg:"Asia"},
+  {id:"KIR",n:"Kiribati",f:"🇰🇮",cap:"South Tarawa",reg:"Oceania"},
+  {id:"PRK",n:"North Korea",f:"🇰🇵",cap:"Pyongyang",reg:"Asia"},
+  {id:"KWT",n:"Kuwait",f:"🇰🇼",cap:"Kuwait City",reg:"Asia"},
+  {id:"KGZ",n:"Kyrgyzstan",f:"🇰🇬",cap:"Bishkek",reg:"Asia"},
+  {id:"LAO",n:"Laos",f:"🇱🇦",cap:"Vientiane",reg:"Asia"},
+  {id:"LVA",n:"Latvia",f:"🇱🇻",cap:"Riga",reg:"Europe"},
+  {id:"LBN",n:"Lebanon",f:"🇱🇧",cap:"Beirut",reg:"Asia"},
+  {id:"LSO",n:"Lesotho",f:"🇱🇸",cap:"Maseru",reg:"Africa"},
+  {id:"LBR",n:"Liberia",f:"🇱🇷",cap:"Monrovia",reg:"Africa"},
+  {id:"LBY",n:"Libya",f:"🇱🇾",cap:"Tripoli",reg:"Africa"},
+  {id:"LIE",n:"Liechtenstein",f:"🇱🇮",cap:"Vaduz",reg:"Europe"},
+  {id:"LTU",n:"Lithuania",f:"🇱🇹",cap:"Vilnius",reg:"Europe"},
+  {id:"LUX",n:"Luxembourg",f:"🇱🇺",cap:"Luxembourg",reg:"Europe"},
+  {id:"MWI",n:"Malawi",f:"🇲🇼",cap:"Lilongwe",reg:"Africa"},
+  {id:"MDV",n:"Maldives",f:"🇲🇻",cap:"Malé",reg:"Asia"},
+  {id:"MLI",n:"Mali",f:"🇲🇱",cap:"Bamako",reg:"Africa"},
+  {id:"MLT",n:"Malta",f:"🇲🇹",cap:"Valletta",reg:"Europe"},
+  {id:"MHL",n:"Marshall Islands",f:"🇲🇭",cap:"Majuro",reg:"Oceania"},
+  {id:"MRT",n:"Mauritania",f:"🇲🇷",cap:"Nouakchott",reg:"Africa"},
+  {id:"MUS",n:"Mauritius",f:"🇲🇺",cap:"Port Louis",reg:"Africa"},
+  {id:"FSM",n:"Micronesia",f:"🇫🇲",cap:"Palikir",reg:"Oceania"},
+  {id:"MDA",n:"Moldova",f:"🇲🇩",cap:"Chișinău",reg:"Europe"},
+  {id:"MCO",n:"Monaco",f:"🇲🇨",cap:"Monaco",reg:"Europe"},
+  {id:"MNG",n:"Mongolia",f:"🇲🇳",cap:"Ulaanbaatar",reg:"Asia"},
+  {id:"MNE",n:"Montenegro",f:"🇲🇪",cap:"Podgorica",reg:"Europe"},
+  {id:"MMR",n:"Myanmar",f:"🇲🇲",cap:"Naypyidaw",reg:"Asia"},
+  {id:"NAM",n:"Namibia",f:"🇳🇦",cap:"Windhoek",reg:"Africa"},
+  {id:"NRU",n:"Nauru",f:"🇳🇷",cap:"Yaren",reg:"Oceania"},
+  {id:"NPL",n:"Nepal",f:"🇳🇵",cap:"Kathmandu",reg:"Asia"},
+  {id:"NIC",n:"Nicaragua",f:"🇳🇮",cap:"Managua",reg:"Americas"},
+  {id:"NER",n:"Niger",f:"🇳🇪",cap:"Niamey",reg:"Africa"},
+  {id:"MKD",n:"North Macedonia",f:"🇲🇰",cap:"Skopje",reg:"Europe"},
+  {id:"OMN",n:"Oman",f:"🇴🇲",cap:"Muscat",reg:"Asia"},
+  {id:"PLW",n:"Palau",f:"🇵🇼",cap:"Ngerulmud",reg:"Oceania"},
+  {id:"PAN",n:"Panama",f:"🇵🇦",cap:"Panama City",reg:"Americas"},
+  {id:"PRY",n:"Paraguay",f:"🇵🇾",cap:"Asunción",reg:"Americas"},
+  {id:"QAT",n:"Qatar",f:"🇶🇦",cap:"Doha",reg:"Asia"},
+  {id:"ROU",n:"Romania",f:"🇷🇴",cap:"Bucharest",reg:"Europe"},
+  {id:"RWA",n:"Rwanda",f:"🇷🇼",cap:"Kigali",reg:"Africa"},
+  {id:"KNA",n:"Saint Kitts and Nevis",f:"🇰🇳",cap:"Basseterre",reg:"Americas"},
+  {id:"LCA",n:"Saint Lucia",f:"🇱🇨",cap:"Castries",reg:"Americas"},
+  {id:"WSM",n:"Samoa",f:"🇼🇸",cap:"Apia",reg:"Oceania"},
+  {id:"SMR",n:"San Marino",f:"🇸🇲",cap:"San Marino",reg:"Europe"},
+  {id:"STP",n:"São Tomé and Príncipe",f:"🇸🇹",cap:"São Tomé",reg:"Africa"},
+  {id:"SEN",n:"Senegal",f:"🇸🇳",cap:"Dakar",reg:"Africa"},
+  {id:"SRB",n:"Serbia",f:"🇷🇸",cap:"Belgrade",reg:"Europe"},
+  {id:"SYC",n:"Seychelles",f:"🇸🇨",cap:"Victoria",reg:"Africa"},
+  {id:"SLE",n:"Sierra Leone",f:"🇸🇱",cap:"Freetown",reg:"Africa"},
+  {id:"SGP",n:"Singapore",f:"🇸🇬",cap:"Singapore",reg:"Asia"},
+  {id:"SVK",n:"Slovakia",f:"🇸🇰",cap:"Bratislava",reg:"Europe"},
+  {id:"SVN",n:"Slovenia",f:"🇸🇮",cap:"Ljubljana",reg:"Europe"},
+  {id:"SLB",n:"Solomon Islands",f:"🇸🇧",cap:"Honiara",reg:"Oceania"},
+  {id:"SOM",n:"Somalia",f:"🇸🇴",cap:"Mogadishu",reg:"Africa"},
+  {id:"SSD",n:"South Sudan",f:"🇸🇸",cap:"Juba",reg:"Africa"},
+  {id:"LKA",n:"Sri Lanka",f:"🇱🇰",cap:"Colombo",reg:"Asia"},
+  {id:"SUR",n:"Suriname",f:"🇸🇷",cap:"Paramaribo",reg:"Americas"},
+  {id:"SYR",n:"Syria",f:"🇸🇾",cap:"Damascus",reg:"Asia"},
+  {id:"TWN",n:"Taiwan",f:"🇹🇼",cap:"Taipei",reg:"Asia"},
+  {id:"TJK",n:"Tajikistan",f:"🇹🇯",cap:"Dushanbe",reg:"Asia"},
+  {id:"TGO",n:"Togo",f:"🇹🇬",cap:"Lomé",reg:"Africa"},
+  {id:"TON",n:"Tonga",f:"🇹🇴",cap:"Nukuʻalofa",reg:"Oceania"},
+  {id:"TTO",n:"Trinidad and Tobago",f:"🇹🇹",cap:"Port of Spain",reg:"Americas"},
+  {id:"TUN",n:"Tunisia",f:"🇹🇳",cap:"Tunis",reg:"Africa"},
+  {id:"TKM",n:"Turkmenistan",f:"🇹🇲",cap:"Ashgabat",reg:"Asia"},
+  {id:"TUV",n:"Tuvalu",f:"🇹🇻",cap:"Funafuti",reg:"Oceania"},
+  {id:"UGA",n:"Uganda",f:"🇺🇬",cap:"Kampala",reg:"Africa"},
+  {id:"ARE",n:"United Arab Emirates",f:"🇦🇪",cap:"Abu Dhabi",reg:"Asia"},
+  {id:"URY",n:"Uruguay",f:"🇺🇾",cap:"Montevideo",reg:"Americas"},
+  {id:"UZB",n:"Uzbekistan",f:"🇺🇿",cap:"Tashkent",reg:"Asia"},
+  {id:"VUT",n:"Vanuatu",f:"🇻🇺",cap:"Port Vila",reg:"Oceania"},
+  {id:"YEM",n:"Yemen",f:"🇾🇪",cap:"Sana'a",reg:"Asia"},
+  {id:"ZMB",n:"Zambia",f:"🇿🇲",cap:"Lusaka",reg:"Africa"},
+  {id:"ZWE",n:"Zimbabwe",f:"🇿🇼",cap:"Harare",reg:"Africa"},
+  {id:"TLS",n:"Timor-Leste",f:"🇹🇱",cap:"Dili",reg:"Asia"},
+  {id:"THA",n:"Thailand (dup)",f:"🇹🇭",cap:"Bangkok",reg:"Asia"},
+  // Extra stubs
+  {id:"BOL",n:"Bolivia",f:"🇧🇴",cap:"Sucre",reg:"Americas"},
+  {id:"HTI",n:"Haiti",f:"🇭🇹",cap:"Port-au-Prince",reg:"Americas"},
+  {id:"NIC",n:"Nicaragua",f:"🇳🇮",cap:"Managua",reg:"Americas"},
+  {id:"HND",n:"Honduras",f:"🇭🇳",cap:"Tegucigalpa",reg:"Americas"},
+  {id:"PAN",n:"Panama",f:"🇵🇦",cap:"Panama City",reg:"Americas"},
+].filter(s => !DONE.find(d => d.id === s.id)); // dedupe
+
+// Combined lookup
+const DONE_IDS = new Set(DONE.map(c => c.id));
+const ALL = [...DONE, ...STUBS];
+const BY_ID = {};
+ALL.forEach(c => BY_ID[c.id] = c);
+
+const MAX_POP = Math.max(...DONE.map(c => c.pop));
+
+function fmt(n) {
+  if (!n) return '—';
+  if (n >= 1e9) return (n/1e9).toFixed(2)+'B';
+  if (n >= 1e6) return Math.round(n/1e6)+'M';
+  if (n >= 1e3) return Math.round(n/1e3)+'K';
+  return n.toLocaleString();
+}
+
+/* ISO numeric → alpha3 */
+const ISO = {4:"AFG",8:"ALB",12:"DZA",24:"AGO",32:"ARG",36:"AUS",40:"AUT",31:"AZE",44:"BHS",48:"BHR",50:"BGD",52:"BRB",112:"BLR",56:"BEL",84:"BLZ",204:"BEN",64:"BTN",68:"BOL",70:"BIH",72:"BWA",76:"BRA",96:"BRN",100:"BGR",854:"BFA",108:"BDI",120:"CMR",132:"CPV",116:"KHM",140:"CAF",148:"TCD",152:"CHL",156:"CHN",170:"COL",174:"COM",178:"COG",180:"COD",188:"CRI",384:"CIV",191:"HRV",192:"CUB",196:"CYP",203:"CZE",208:"DNK",262:"DJI",214:"DOM",218:"ECU",818:"EGY",222:"SLV",231:"ETH",238:"FJI",246:"FIN",250:"FRA",266:"GAB",270:"GMB",268:"GEO",276:"DEU",288:"GHA",300:"GRC",320:"GTM",324:"GIN",328:"GUY",332:"HTI",340:"HND",348:"HUN",352:"ISL",356:"IND",360:"IDN",364:"IRN",368:"IRQ",372:"IRL",376:"ISR",380:"ITA",388:"JAM",392:"JPN",400:"JOR",398:"KAZ",404:"KEN",408:"PRK",410:"KOR",414:"KWT",417:"KGZ",418:"LAO",428:"LVA",422:"LBN",426:"LSO",430:"LBR",434:"LBY",440:"LTU",442:"LUX",450:"MDG",454:"MWI",458:"MYS",462:"MDV",466:"MLI",484:"MEX",504:"MAR",508:"MOZ",104:"MMR",516:"NAM",524:"NPL",528:"NLD",554:"NZL",558:"NIC",562:"NER",566:"NGA",578:"NOR",512:"OMN",586:"PAK",591:"PAN",598:"PNG",600:"PRY",604:"PER",608:"PHL",616:"POL",620:"PRT",634:"QAT",642:"ROU",643:"RUS",646:"RWA",682:"SAU",686:"SEN",694:"SLE",702:"SGP",703:"SVK",705:"SVN",706:"SOM",710:"ZAF",724:"ESP",144:"LKA",729:"SDN",740:"SUR",752:"SWE",756:"CHE",760:"SYR",762:"TJK",764:"THA",768:"TGO",792:"TUR",795:"TKM",800:"UGA",804:"UKR",784:"ARE",826:"GBR",840:"USA",858:"URY",860:"UZB",862:"VEN",704:"VNM",887:"YEM",894:"ZMB",716:"ZWE",780:"TTO",788:"TUN",834:"TZA"};
+
+/* region → fill colours */
+const REG_FILL  = { "Africa":"#1d2820","Americas":"#1a2030","Asia":"#26201e","Europe":"#1a1e28","Oceania":"#182428" };
+const STUB_FILL = "#181819"; // nearly black — unavailable countries
+const SEL_FILL  = "#2d4f7a";
+const HOV_FILL  = "#253545";
+const HOV_STUB  = "#1f1f22";
+
+let selectedId   = null;
+let listFilter   = "all";
+let listSort     = "name";
+
+/* =============================================
+   MAP SETUP
+============================================= */
+const W = 960, H = 500;
+const proj    = d3.geoNaturalEarth1().scale(153).translate([W/2, H/2+20]);
+const pathGen = d3.geoPath().projection(proj);
+const tip = document.getElementById('tip');
+
+const zoomBeh = d3.zoom().scaleExtent([1,10]).on("zoom", e => g.attr("transform", e.transform));
+const svg = d3.select('#world-svg').call(zoomBeh);
+
+svg.append('rect').attr('width',W).attr('height',H).attr('fill','#0c0c0e');
+const g = svg.append('g');
+
+g.append('path')
+  .datum(d3.geoGraticule()())
+  .attr('d', pathGen)
+  .attr('fill','none').attr('stroke','#18181c').attr('stroke-width',.5);
+
+fetch('https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json')
+  .then(r => r.json())
+  .then(world => {
+    const features = topojson.feature(world, world.objects.countries);
+    const borders  = topojson.mesh(world, world.objects.countries, (a,b)=>a!==b);
+
+    g.selectAll('.land')
+      .data(features.features)
+      .join('path').attr('class','land')
+      .attr('d', pathGen)
+      .attr('fill', d => {
+        const a3 = ISO[+d.id];
+        const c  = BY_ID[a3];
+        if (!c) return '#141418';
+        return DONE_IDS.has(a3) ? (REG_FILL[c.reg]||'#1a2030') : STUB_FILL;
+      })
+      .attr('stroke','none')
+      .on('mouseenter', function(ev, d) {
+        const a3 = ISO[+d.id];
+        const c  = BY_ID[a3];
+        if (!c) return;
+        const isDone = DONE_IDS.has(a3);
+        if (a3 !== selectedId)
+          d3.select(this).attr('fill', isDone ? HOV_FILL : HOV_STUB);
+        // tooltip
+        tip.style.display = 'block';
+        document.getElementById('tip-flag').textContent = c.f || '';
+        document.getElementById('tip-name').textContent = c.n;
+        document.getElementById('tip-cap').textContent  = c.cap || '';
+        document.getElementById('tip-unavail').style.display = isDone ? 'none' : 'block';
+        positionTip(ev);
+      })
+      .on('mousemove', positionTip)
+      .on('mouseleave', function(ev, d) {
+        const a3 = ISO[+d.id];
+        const c  = BY_ID[a3];
+        if (c && a3 !== selectedId) {
+          const isDone = DONE_IDS.has(a3);
+          d3.select(this).attr('fill', isDone ? (REG_FILL[c.reg]||'#1a2030') : STUB_FILL);
+        }
+        tip.style.display = 'none';
+      })
+      .on('click', function(ev, d) {
+        const a3 = ISO[+d.id];
+        const c  = BY_ID[a3];
+        if (!c) return;
+        if (DONE_IDS.has(a3)) {
+          selectCountry(c);
+        } else {
+          // show locked state in panel
+          showLocked(c);
+        }
+        tip.style.display = 'none';
+      });
+
+    g.append('path').datum(borders)
+      .attr('d', pathGen).attr('fill','none')
+      .attr('stroke','#0d0d10').attr('stroke-width',.8);
+
+    document.getElementById('map-label').textContent =
+      'natural earth · ' + DONE.length + ' countries available · scroll to zoom';
+  })
+  .catch(() => {
+    document.getElementById('map-label').textContent = 'map failed — use Countries tab';
+  });
+
+function positionTip(ev) {
+  const r = document.getElementById('app').getBoundingClientRect();
+  tip.style.left = (ev.clientX - r.left + 13) + 'px';
+  tip.style.top  = (ev.clientY - r.top  - 72) + 'px';
+}
+
+document.getElementById('btn-zin').onclick   = ()=>svg.transition().call(zoomBeh.scaleBy,1.5);
+document.getElementById('btn-zout').onclick  = ()=>svg.transition().call(zoomBeh.scaleBy,0.67);
+document.getElementById('btn-reset').onclick = ()=>svg.transition().call(zoomBeh.transform,d3.zoomIdentity);
+
+/* =============================================
+   SELECT + HIGHLIGHT
+============================================= */
+function selectCountry(c) {
+  selectedId = c.id;
+  d3.selectAll('.land').attr('fill', d => {
+    const a3 = ISO[+d.id];
+    if (a3 === c.id) return SEL_FILL;
+    const cd = BY_ID[a3];
+    if (!cd) return '#141418';
+    return DONE_IDS.has(a3) ? (REG_FILL[cd.reg]||'#1a2030') : STUB_FILL;
+  });
+  renderInfo(c);
+  document.getElementById('selected-label').textContent = c.f + ' ' + c.n;
+  document.querySelectorAll('.list-row').forEach(r =>
+    r.classList.toggle('selected', r.dataset.id === c.id)
+  );
+}
+
+/* =============================================
+   INFO PANEL — full data
+============================================= */
+function renderInfo(c) {
+  const pct = Math.round((c.pop / MAX_POP) * 100);
+  document.getElementById('info-scroll').innerHTML = `
+    <div class="cc-flag">${c.f}</div>
+    <div class="cc-name">${c.n}</div>
+    <div class="cc-native">${c.nt && c.nt !== c.n ? c.nt : '&nbsp;'}</div>
+    <div class="cc-capital">Capital: <span>${c.cap}</span></div>
+    <div class="cc-divider"></div>
+    <div class="cc-stats">
+      <div class="cc-stat-row"><span class="cc-stat-label">region</span><span class="cc-stat-val">${c.sreg||c.reg}</span></div>
+      <div class="cc-stat-row"><span class="cc-stat-label">population</span><span class="cc-stat-val">${(c.pop||0).toLocaleString()}</span></div>
+      <div class="cc-stat-row"><span class="cc-stat-label">area</span><span class="cc-stat-val">${(c.area||0).toLocaleString()} km²</span></div>
+      <div class="cc-stat-row"><span class="cc-stat-label">currency</span><span class="cc-stat-val">${c.cur||'—'}</span></div>
+    </div>
+    <div class="cc-pop-bar">
+      <div class="cc-pop-bar-label">pop. relative to China</div>
+      <div class="cc-pop-bar-track"><div class="cc-pop-bar-fill" id="pbar" style="width:0%"></div></div>
+    </div>
+    <div class="cc-langs">
+      <div class="cc-langs-label">languages</div>
+      <div class="cc-lang-list">${(c.langs||[]).map(l=>`<span class="cc-lang">${l}</span>`).join('')}</div>
+    </div>
+    <div class="cc-divider"></div>
+    <div class="cc-fact"><div class="cc-fact-label">note</div>${c.fact||''}</div>
+  `;
+  setTimeout(()=>{ const pb=document.getElementById('pbar'); if(pb) pb.style.width=pct+'%'; }, 40);
+}
+
+/* locked / stub panel */
+function showLocked(c) {
+  selectedId = null;
+  // reset map highlight
+  d3.selectAll('.land').attr('fill', d => {
+    const a3 = ISO[+d.id];
+    const cd = BY_ID[a3];
+    if (!cd) return '#141418';
+    return DONE_IDS.has(a3) ? (REG_FILL[cd.reg]||'#1a2030') : STUB_FILL;
+  });
+  document.getElementById('selected-label').textContent = 'nothing selected';
+  document.getElementById('info-scroll').innerHTML = `
+    <div class="cc-locked">
+      <div class="cc-locked-flag">${c.f||'🏳'}</div>
+      <div class="cc-locked-name">${c.n}</div>
+      <div class="cc-locked-msg">
+        Haven't gotten to this one yet.<br>
+        Capital is <strong style="color:var(--muted)">${c.cap||'unknown'}</strong>, that's about all I have for now.
+      </div>
+      <div class="cc-locked-tag">// todo</div>
+    </div>
+  `;
+}
+
+/* =============================================
+   VIEW SWITCHER
+============================================= */
+function switchView(v, btn) {
+  document.querySelectorAll('#nav-links button').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById('map-area').style.display  = v==='map'   ? 'flex'  : 'none';
+  document.getElementById('list-view').style.display = v==='list'  ? 'flex'  : 'none';
+  document.getElementById('stats-view').style.display= v==='stats' ? 'block' : 'none';
+  if (v==='list')  renderList();
+  if (v==='stats') renderStats();
+}
+
+/* =============================================
+   COUNTRY LIST
+============================================= */
+function renderList() {
+  let items = ALL.filter(c => listFilter==='all' || c.reg===listFilter);
+
+  // sort — stubs always go to bottom
+  const done  = items.filter(c=>DONE_IDS.has(c.id));
+  const stubs = items.filter(c=>!DONE_IDS.has(c.id));
+  const sortFn = (a,b) => {
+    if (listSort==='name') return a.n.localeCompare(b.n);
+    if (listSort==='pop')  return (b.pop||0)-(a.pop||0);
+    if (listSort==='area') return (b.area||0)-(a.area||0);
+    return 0;
+  };
+  done.sort(sortFn);
+  stubs.sort((a,b)=>a.n.localeCompare(b.n));
+  const sorted = [...done, ...stubs];
+
+  document.getElementById('list-count').textContent =
+    done.length + ' available · ' + stubs.length + ' not yet added';
+
+  document.getElementById('list-scroll').innerHTML = sorted.map(c => {
+    const isDone = DONE_IDS.has(c.id);
+    return `<div class="list-row${selectedId===c.id?' selected':''}${!isDone?' unavail':''}" data-id="${c.id}">
+      <span class="lr-flag">${c.f||'?'}</span>
+      <div class="lr-info">
+        <div class="lr-name">${c.n}</div>
+        <div class="lr-cap">${c.cap||'—'}</div>
+      </div>
+      <div class="lr-right">
+        ${isDone
+          ? `<div class="lr-pop">${fmt(c.pop)}</div><div class="lr-reg">${c.reg}</div>`
+          : `<div class="lr-wip">// todo</div>`}
+      </div>
+    </div>`;
+  }).join('');
+
+  document.querySelectorAll('.list-row:not(.unavail)').forEach(row => {
+    row.addEventListener('click', () => {
+      const c = BY_ID[row.dataset.id];
+      if (!c || !DONE_IDS.has(c.id)) return;
+      selectCountry(c);
+      const mapBtn = document.querySelector('#nav-links button[data-view="map"]');
+      switchView('map', mapBtn);
+    });
+  });
+}
+
+document.querySelectorAll('.reg-btn').forEach(b=>{
+  b.addEventListener('click',()=>{
+    document.querySelectorAll('.reg-btn').forEach(x=>x.classList.remove('active'));
+    b.classList.add('active');
+    listFilter=b.dataset.r; renderList();
+  });
+});
+document.getElementById('list-sort').addEventListener('change',e=>{ listSort=e.target.value; renderList(); });
+
+/* =============================================
+   STATS
+============================================= */
+function renderStats() {
+  const topPop  = [...DONE].sort((a,b)=>b.pop -a.pop ).slice(0,12);
+  const topArea = [...DONE].sort((a,b)=>b.area-a.area).slice(0,12);
+  const rCount={}, rPop={};
+  DONE.forEach(c=>{ rCount[c.reg]=(rCount[c.reg]||0)+1; rPop[c.reg]=(rPop[c.reg]||0)+c.pop; });
+  const mp=topPop[0].pop, ma=topArea[0].area;
+
+  document.getElementById('stats-view').innerHTML = `
+    <div class="stats-section">
+      <h3>Most populous (of added countries)</h3>
+      ${topPop.map(c=>`<div class="bar-row">
+        <span class="bar-flag">${c.f}</span>
+        <span class="bar-name">${c.n}</span>
+        <div class="bar-track"><div class="bar-fill" style="width:${Math.round(c.pop/mp*100)}%"></div></div>
+        <span class="bar-val">${fmt(c.pop)}</span>
+      </div>`).join('')}
+    </div>
+    <div class="stats-section">
+      <h3>Largest by area (of added countries)</h3>
+      ${topArea.map(c=>`<div class="bar-row">
+        <span class="bar-flag">${c.f}</span>
+        <span class="bar-name">${c.n}</span>
+        <div class="bar-track"><div class="bar-fill" style="width:${Math.round(c.area/ma*100)}%"></div></div>
+        <span class="bar-val">${fmt(c.area)} km²</span>
+      </div>`).join('')}
+    </div>
+    <div class="stats-section">
+      <h3>By region</h3>
+      <table class="region-table">
+        <thead><tr><th>Region</th><th>Added</th><th>Population</th></tr></thead>
+        <tbody>${Object.entries(rCount).sort((a,b)=>b[1]-a[1]).map(([r,n])=>`
+          <tr><td>${r}</td><td>${n}</td><td>${fmt(rPop[r])}</td></tr>`).join('')}
+        </tbody>
+      </table>
+    </div>
+  `;
+}
+
+/* =============================================
+   SEARCH
+============================================= */
+const srchEl = document.getElementById('nav-search');
+const ddEl   = document.getElementById('search-dropdown');
+
+srchEl.addEventListener('input', ()=>{
+  const q = srchEl.value.toLowerCase().trim();
+  if (!q) { ddEl.style.display='none'; return; }
+  const hits = ALL.filter(c=>
+    c.n.toLowerCase().includes(q) || (c.cap&&c.cap.toLowerCase().includes(q))
+  ).slice(0,10);
+  if (!hits.length) { ddEl.style.display='none'; return; }
+  ddEl.innerHTML = hits.map(c => {
+    const isDone = DONE_IDS.has(c.id);
+    return `<div class="sdrop-item${!isDone?' unavail':''}" data-id="${c.id}">
+      <span class="sdrop-flag">${c.f||'?'}</span>
+      <span class="sdrop-name">${c.n}</span>
+      ${isDone
+        ? `<span class="sdrop-cap">${c.cap}</span>`
+        : `<span class="sdrop-unavail-tag">todo</span>`}
+    </div>`;
+  }).join('');
+  ddEl.style.display='block';
+  ddEl.querySelectorAll('.sdrop-item:not(.unavail)').forEach(el=>{
+    el.addEventListener('click',()=>{
+      const c=BY_ID[el.dataset.id]; if(!c) return;
+      srchEl.value=''; ddEl.style.display='none';
+      selectCountry(c);
+      const mb=document.querySelector('#nav-links button[data-view="map"]');
+      if(!mb.classList.contains('active')) switchView('map',mb);
+    });
+  });
+});
+document.addEventListener('click',e=>{ if(!e.target.closest('#nav-search-wrap')) ddEl.style.display='none'; });
+</script>
+</body>
+</html>
